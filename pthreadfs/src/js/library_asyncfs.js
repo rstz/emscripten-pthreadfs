@@ -1554,5 +1554,120 @@
         throw new Error('Cannot load without read() or XMLHttpRequest.');
       }
     },
+    init: async function(folder) {
+      if (typeof folder !== 'string' || folder.includes('/')) {
+        console.log("PThreadFS warning: Bad folder name: " + folder);
+        console.log("                   The folder name should be a string that does not include /");
+      }
+      
+      let access_handle_detection = async function() {
+        if (ENVIRONMENT_IS_NODE)
+          return false;
+        if (ENVIRONMENT_IS_WEB) {
+          const workerCode = `
+let present = FileSystemFileHandle.prototype.createSyncAccessHandle !== undefined;
+postMessage(present);
+`
+          const workerBlob = new Blob ([workerCode], {type: 'text/javascript'});
+          let waitForWorker = async function() {
+            const worker = new Worker(window.URL.createObjectURL(workerBlob));
+            return new Promise((resolve, reject) => {
+              worker.onmessage = result => {
+                resolve(result.data);
+                worker.terminate();
+              }
+              worker.onerror = error => {
+                reject(error);
+                worker.terminate();
+              }
+            });
+          }
+          return await waitForWorker();
+        }
+    
+        const root = await navigator.storage.getDirectory();
+        const present = FileSystemFileHandle.prototype.createSyncAccessHandle !== undefined;
+        return present;
+      };
+    
+      let storage_foundation_detection = async function() {
+        if (typeof storageFoundation == typeof undefined) {
+          return false;
+        }
+        let granted_capacity = await storageFoundation.requestCapacity(1);
+        if (granted_capacity === 0) {
+          return false;
+        }
+        return true;
+      };
+      
+      var FSNode = /** @constructor */ function(parent, name, mode, rdev) {
+        if (!parent) {
+          parent = this;  // root node sets parent to itself
+        }
+        this.parent = parent;
+        this.mount = parent.mount;
+        this.mounted = null;
+        this.id = PThreadFS.nextInode++;
+        this.name = name;
+        this.mode = mode;
+        this.node_ops = {};
+        this.stream_ops = {};
+        this.rdev = rdev;
+      };
+      var readMode = 292/*{{{ cDefine("S_IRUGO") }}}*/ | 73/*{{{ cDefine("S_IXUGO") }}}*/;
+      var writeMode = 146/*{{{ cDefine("S_IWUGO") }}}*/;
+      Object.defineProperties(FSNode.prototype, {
+       read: {
+        get: /** @this{FSNode} */function() {
+         return (this.mode & readMode) === readMode;
+        },
+        set: /** @this{FSNode} */function(val) {
+         val ? this.mode |= readMode : this.mode &= ~readMode;
+        }
+       },
+       write: {
+        get: /** @this{FSNode} */function() {
+         return (this.mode & writeMode) === writeMode;
+        },
+        set: /** @this{FSNode} */function(val) {
+         val ? this.mode |= writeMode : this.mode &= ~writeMode;
+        }
+       },
+       isFolder: {
+        get: /** @this{FSNode} */function() {
+         return PThreadFS.isDir(this.mode);
+        }
+       },
+       isDevice: {
+        get: /** @this{FSNode} */function() {
+         return PThreadFS.isChrdev(this.mode);
+        }
+       }
+      });
+      PThreadFS.FSNode = FSNode;
+    
+      await PThreadFS.staticInit();
+      PThreadFS.ignorePermissions = false;
+      let folderpath = '/' + folder;
+      await PThreadFS.mkdir(folderpath);
+      let has_access_handles = await access_handle_detection();
+      let has_storage_foundation = await storage_foundation_detection();
+  
+      if (has_access_handles) {
+        await PThreadFS.mount(FSAFS, {root : '.'}, folderpath);
+        console.log('Initialized PThreadFS with OPFS Access Handles');
+      } else if (has_storage_foundation) {
+        await PThreadFS.mount(SFAFS, {root : '.'}, folderpath);
+    
+        // Storage Foundation requires explicit capacity allocations.
+        if (storageFoundation.requestCapacity) {
+          await storageFoundation.requestCapacity(1024 * 1024 * 1024);
+        }
+        console.log('Initialized PThreadFS with Storage Foundation API');
+      } else {
+        console.log('Initialized PThreadFS with MEMFS');
+      }
+    },
   },
 });

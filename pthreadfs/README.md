@@ -74,7 +74,7 @@ See `pthreadfs/examples/emscripten-tests/fsafs.cpp` for exemplary usage.
 - PThreadFS depends on C++ libraries. `EM_PTHREADFS_ASM()` cannot be used within C files.
 - Performance is good if and only if optimizations (compiler option `-O2`) are enabled and DevTools are closed.
 - Accessing the file system before `main()` requires linker option `PTHREAD_POOL_SIZE=<expression>` to be active. Doing so may lead to some blocking of the main thread, which is risky. Check out `examples/early_syscall.cpp` for an example.
-- The Storage Foundation backend requires case-insensitive file names.
+- PThreadFS is a case-insensitive file system.
 - Compiling with the Closure Compiler is not supported.
 - Compiling with optimization `-O3` is not yet supported and may lead to a faulty build.
 

@@ -84,98 +84,7 @@ for (x of SyscallsFunctions) {
 SyscallWrappers['pthreadfs_init'] =
   function(folder_ref, resume) {
   let folder = UTF8ToString(folder_ref)
-
-  if (typeof folder !== 'string' || folder.includes('/')) {
-    console.log("PThreadFS warning: Bad folder name: " + folder);
-    console.log("                   The folder name should be a string that does not include /");
-  }
-  
-  let access_handle_detection = async function() {
-    if (ENVIRONMENT_IS_NODE)
-      return false;
-
-    const root = await navigator.storage.getDirectory();
-    const present = FileSystemFileHandle.prototype.createSyncAccessHandle !== undefined;
-    return present;
-  };
-
-  let storage_foundation_detection = function() {
-    if (typeof storageFoundation == typeof undefined) {
-      return false;
-    }
-    if (storageFoundation.requestCapacitySync(1) === 0) {
-      return false;
-    }
-    return true;
-  };
-  
-  var FSNode = /** @constructor */ function(parent, name, mode, rdev) {
-    if (!parent) {
-      parent = this;  // root node sets parent to itself
-    }
-    this.parent = parent;
-    this.mount = parent.mount;
-    this.mounted = null;
-    this.id = PThreadFS.nextInode++;
-    this.name = name;
-    this.mode = mode;
-    this.node_ops = {};
-    this.stream_ops = {};
-    this.rdev = rdev;
-  };
-  var readMode = 292/*{{{ cDefine("S_IRUGO") }}}*/ | 73/*{{{ cDefine("S_IXUGO") }}}*/;
-  var writeMode = 146/*{{{ cDefine("S_IWUGO") }}}*/;
-  Object.defineProperties(FSNode.prototype, {
-   read: {
-    get: /** @this{FSNode} */function() {
-     return (this.mode & readMode) === readMode;
-    },
-    set: /** @this{FSNode} */function(val) {
-     val ? this.mode |= readMode : this.mode &= ~readMode;
-    }
-   },
-   write: {
-    get: /** @this{FSNode} */function() {
-     return (this.mode & writeMode) === writeMode;
-    },
-    set: /** @this{FSNode} */function(val) {
-     val ? this.mode |= writeMode : this.mode &= ~writeMode;
-    }
-   },
-   isFolder: {
-    get: /** @this{FSNode} */function() {
-     return PThreadFS.isDir(this.mode);
-    }
-   },
-   isDevice: {
-    get: /** @this{FSNode} */function() {
-     return PThreadFS.isChrdev(this.mode);
-    }
-   }
-  });
-  PThreadFS.FSNode = FSNode;
-
-  PThreadFS.staticInit().then(async () => {
-    PThreadFS.ignorePermissions = false;
-    let folderpath = '/' + folder;
-    await PThreadFS.mkdir(folderpath);
-    let has_access_handles = await access_handle_detection();
-    let has_storage_foundation = storage_foundation_detection();
-
-    if (has_access_handles) {
-      await PThreadFS.mount(FSAFS, {root : '.'}, folderpath);
-      console.log('Initialized PThreadFS with OPFS Access Handles');
-    } else if (has_storage_foundation) {
-      await PThreadFS.mount(SFAFS, {root : '.'}, folderpath);
-  
-      // Storage Foundation requires explicit capacity allocations.
-      if (storageFoundation.requestCapacity) {
-        await storageFoundation.requestCapacity(1024 * 1024 * 1024);
-      }
-      console.log('Initialized PThreadFS with Storage Foundation API');
-    } else {
-      console.log('Initialized PThreadFS with MEMFS');
-    }
+  PThreadFS.init(folder).then(async () => {
     // Load any data added during --pre-js.
     await PThreadFS.loadAvailablePackages();
     wasmTable.get(resume)();
@@ -2559,6 +2468,121 @@ mergeInto(LibraryManager.library, SyscallsLibrary);
         throw new Error('Cannot load without read() or XMLHttpRequest.');
       }
     },
+    init: async function(folder) {
+      if (typeof folder !== 'string' || folder.includes('/')) {
+        console.log("PThreadFS warning: Bad folder name: " + folder);
+        console.log("                   The folder name should be a string that does not include /");
+      }
+      
+      let access_handle_detection = async function() {
+        if (ENVIRONMENT_IS_NODE)
+          return false;
+        if (ENVIRONMENT_IS_WEB) {
+          const workerCode = `
+let present = FileSystemFileHandle.prototype.createSyncAccessHandle !== undefined;
+postMessage(present);
+`
+          const workerBlob = new Blob ([workerCode], {type: 'text/javascript'});
+          let waitForWorker = async function() {
+            const worker = new Worker(window.URL.createObjectURL(workerBlob));
+            return new Promise((resolve, reject) => {
+              worker.onmessage = result => {
+                resolve(result.data);
+                worker.terminate();
+              }
+              worker.onerror = error => {
+                reject(error);
+                worker.terminate();
+              }
+            });
+          }
+          return await waitForWorker();
+        }
+    
+        const root = await navigator.storage.getDirectory();
+        const present = FileSystemFileHandle.prototype.createSyncAccessHandle !== undefined;
+        return present;
+      };
+    
+      let storage_foundation_detection = async function() {
+        if (typeof storageFoundation == typeof undefined) {
+          return false;
+        }
+        let granted_capacity = await storageFoundation.requestCapacity(1);
+        if (granted_capacity === 0) {
+          return false;
+        }
+        return true;
+      };
+      
+      var FSNode = /** @constructor */ function(parent, name, mode, rdev) {
+        if (!parent) {
+          parent = this;  // root node sets parent to itself
+        }
+        this.parent = parent;
+        this.mount = parent.mount;
+        this.mounted = null;
+        this.id = PThreadFS.nextInode++;
+        this.name = name;
+        this.mode = mode;
+        this.node_ops = {};
+        this.stream_ops = {};
+        this.rdev = rdev;
+      };
+      var readMode = 292/*{{{ cDefine("S_IRUGO") }}}*/ | 73/*{{{ cDefine("S_IXUGO") }}}*/;
+      var writeMode = 146/*{{{ cDefine("S_IWUGO") }}}*/;
+      Object.defineProperties(FSNode.prototype, {
+       read: {
+        get: /** @this{FSNode} */function() {
+         return (this.mode & readMode) === readMode;
+        },
+        set: /** @this{FSNode} */function(val) {
+         val ? this.mode |= readMode : this.mode &= ~readMode;
+        }
+       },
+       write: {
+        get: /** @this{FSNode} */function() {
+         return (this.mode & writeMode) === writeMode;
+        },
+        set: /** @this{FSNode} */function(val) {
+         val ? this.mode |= writeMode : this.mode &= ~writeMode;
+        }
+       },
+       isFolder: {
+        get: /** @this{FSNode} */function() {
+         return PThreadFS.isDir(this.mode);
+        }
+       },
+       isDevice: {
+        get: /** @this{FSNode} */function() {
+         return PThreadFS.isChrdev(this.mode);
+        }
+       }
+      });
+      PThreadFS.FSNode = FSNode;
+    
+      await PThreadFS.staticInit();
+      PThreadFS.ignorePermissions = false;
+      let folderpath = '/' + folder;
+      await PThreadFS.mkdir(folderpath);
+      let has_access_handles = await access_handle_detection();
+      let has_storage_foundation = await storage_foundation_detection();
+  
+      if (has_access_handles) {
+        await PThreadFS.mount(FSAFS, {root : '.'}, folderpath);
+        console.log('Initialized PThreadFS with OPFS Access Handles');
+      } else if (has_storage_foundation) {
+        await PThreadFS.mount(SFAFS, {root : '.'}, folderpath);
+    
+        // Storage Foundation requires explicit capacity allocations.
+        if (storageFoundation.requestCapacity) {
+          await storageFoundation.requestCapacity(1024 * 1024 * 1024);
+        }
+        console.log('Initialized PThreadFS with Storage Foundation API');
+      } else {
+        console.log('Initialized PThreadFS with MEMFS');
+      }
+    },
   },
 });
 /**
@@ -3574,13 +3598,19 @@ mergeInto(LibraryManager.library, {
         if (PThreadFS.isDir(node.mode)) {
           attr.size = 4096;
         } else if (PThreadFS.isFile(node.mode)) {
-          if (node.handle) {
-            attr.size = await node.handle.getSize();
-          } 
+          if (ENVIRONMENT_IS_WEB){
+            let file_blob = await node.localReference.getFile();
+            attr.size = file_blob.size;
+          }
           else {
-            let fileHandle = await node.localReference.createSyncAccessHandle();
-            attr.size = await fileHandle.getSize();
-            await fileHandle.close();
+            if (node.handle) {
+              attr.size = await node.handle.getSize();
+            } 
+            else {
+              let fileHandle = await node.localReference.createSyncAccessHandle();
+              attr.size = await fileHandle.getSize();
+              await fileHandle.close();
+            }
           }
         } else if (PThreadFS.isLink(node.mode)) {
           attr.size = node.link.length;
@@ -3606,22 +3636,30 @@ mergeInto(LibraryManager.library, {
           node.timestamp = attr.timestamp;
         }
         if (attr.size !== undefined) {
-          let useOpen = false;
-          let fileHandle = node.handle;
-          try {
-            if (!fileHandle) {
-              // Open a handle that is closed later.
-              useOpen = true;
-              fileHandle = await node.localReference.createSyncAccessHandle();
-            }
-            await fileHandle.truncate(attr.size);
-            
-          } catch (e) {
-            if (!('code' in e)) throw e;
-            throw new PThreadFS.ErrnoError(-e.errno);
-          } finally {
-            if (useOpen) {
-              await fileHandle.close();
+          if (ENVIRONMENT_IS_WEB) {
+            // Since Access Handles are unavailable in workers, we must use writables instead.
+            let wt = await node.localReference.createWritable({ keepExistingData: true});
+            await wt.truncate(attr.size);
+            await wt.close();
+          }
+          else {  // !ENVIRONMENT_IS_WEB
+            let useOpen = false;
+            let fileHandle = node.handle;
+            try {
+              if (!fileHandle) {
+                // Open a handle that is closed later.
+                useOpen = true;
+                fileHandle = await node.localReference.createSyncAccessHandle();
+              }
+              await fileHandle.truncate(attr.size);
+              
+            } catch (e) {
+              if (!('code' in e)) throw e;
+              throw new PThreadFS.ErrnoError(-e.errno);
+            } finally {
+              if (useOpen) {
+                await fileHandle.close();
+              }
             }
           }
         }
@@ -3771,7 +3809,12 @@ mergeInto(LibraryManager.library, {
           stream.handle = stream.node.handle;
           ++stream.node.refcount;
         } else {
-          stream.handle = await stream.node.localReference.createSyncAccessHandle();
+          if (ENVIRONMENT_IS_WEB) {
+            stream.handle = stream.node.localReference;
+          }
+          else {
+            stream.handle = await stream.node.localReference.createSyncAccessHandle();
+          }
           stream.node.handle = stream.handle;
           stream.node.refcount = 1;
         }
@@ -3791,7 +3834,9 @@ mergeInto(LibraryManager.library, {
         stream.handle = null;
         --stream.node.refcount;
         if (stream.node.refcount <= 0) {
-          await stream.node.handle.close();
+          if (!ENVIRONMENT_IS_WEB) {
+            await stream.node.handle.close();
+          }
           stream.node.handle = null;
         }
       },
@@ -3801,14 +3846,26 @@ mergeInto(LibraryManager.library, {
         if (stream.handle == null) {
           throw new PThreadFS.ErrnoError({{{ cDefine('EBADF') }}});
         }
-        await stream.handle.flush();
+        if (!ENVIRONMENT_IS_WEB) {
+          await stream.handle.flush();
+        }
         return 0;
       },
 
       read: async function (stream, buffer, offset, length, position) {
         FSAFS.debug('read', arguments);
         let data = buffer.subarray(offset, offset+length);
-        let readBytes = await stream.handle.read(data, {at: position});
+        let readBytes;
+        if (ENVIRONMENT_IS_WEB) {
+          let file_blob = await stream.handle.getFile();
+          let file_arraybuffer = await file_blob.arrayBuffer();
+          let read_maximum = Math.min(position + data.length, file_blob.size);
+          data.set(file_arraybuffer.slice(position, read_maximum));
+          readBytes = read_maximum - position;
+        }
+        else {
+          readBytes = await stream.handle.read(data, {at: position});
+        }
         return readBytes;
       },
 
@@ -3816,7 +3873,16 @@ mergeInto(LibraryManager.library, {
         FSAFS.debug('write', arguments);
         stream.node.timestamp = Date.now();
         let data = buffer.subarray(offset, offset+length);
-        let writtenBytes = await stream.handle.write(data, {at: position});
+        let writtenBytes;
+        if (ENVIRONMENT_IS_WEB) {
+          let writable = await stream.handle.createWritable({ keepExistingData: true});
+          await writable.write({type: "write", position: position, data: data});
+          await writable.close();
+          writtenBytes = data.length;
+        }
+        else {
+          writtenBytes = await stream.handle.write(data, {at: position});
+        }
         return writtenBytes;
       },
 
@@ -3827,7 +3893,13 @@ mergeInto(LibraryManager.library, {
           position += stream.position;
         } else if (whence === {{{ cDefine('SEEK_END') }}}) {
           if (PThreadFS.isFile(stream.node.mode)) {
-            position += await stream.handle.getSize();
+            if (ENVIRONMENT_IS_WEB) {
+              let file_blob = await stream.handle.getFile();
+              position += file_blob.size;
+            }
+            else {
+              position += await stream.handle.getSize();
+            }
           }
         } 
 

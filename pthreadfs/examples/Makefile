@@ -28,7 +28,7 @@ SQLITE_SPEEDTEST_URL = https://sqlite.org/src/raw/5e5b805f24cc939656058f6a498f5a
 SQLITE_SPEEDTEST_SHA1 = f0edde2ad68f090e4676ac30042e0f6b765a8528
 
 .PHONY: all 
-all: sqlite-speedtest emscripten-tests packager-tests
+all: sqlite-speedtest emscripten-tests packager-tests jsops-tests
 
 ## cache
 cache/$(SQLITE_AMALGAMATION).zip:
@@ -180,3 +180,16 @@ dist/$(PACKAGERTESTS)/preloading.html: $(OBJ)/preloading.o $(OBJ)/pthreadfs.o di
 dist/$(PACKAGERTESTS)/intermediate_loading.html: $(OBJ)/intermediate_loading.o $(OBJ)/pthreadfs.o dist/$(PACKAGERTESTS)/pkg_intermediate_small.js dist/$(PACKAGERTESTS)/pkg_intermediate_mediumlarge.js $(PTHREADFS_JS)
 	mkdir -p dist/$(PACKAGERTESTS)
 	$(EMCC) $(LINK_FLAGS) -o $@ --js-library=$(PTHREADFS_JS) $< $(word 2,$^)
+
+
+JSOPSTESTS = jsops-tests
+.PHONY: jsops-tests
+jsops-tests: dist/$(JSOPSTESTS)/write_from_main_thread.html
+
+$(OBJ)/%.o : $(JSOPSTESTS)/%.cpp
+	mkdir -p $(OBJ)
+	$(EMCC) -c $(CFLAGS) $< -o $@
+
+dist/$(JSOPSTESTS)/write_from_main_thread.html: $(OBJ)/write_from_main_thread.o $(OBJ)/pthreadfs.o $(JSOPSTESTS)/write_from_main_thread_pre.js $(PTHREADFS_JS)
+	mkdir -p dist/$(JSOPSTESTS)
+	$(EMCC) $(LINK_FLAGS) -o $@ --js-library=$(PTHREADFS_JS)  --pre-js $(word 3,$^) $< $(word 2,$^) 

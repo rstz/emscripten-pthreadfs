@@ -34,7 +34,7 @@ int main() {
   std::cout << "Test preloading files.\n";
 
   test("persistent/smallfile.txt", "These are the contents of a very small file.", 188);
-  test("persistent/subfolder/mediumfile.txt",
+  test("persistent/Subfolder/mediumfile.txt",
     "Begin mediumfile.txt -------------------------------------------", 138670);
   test("persistent/bigfile.txt", "Begin bigfile.txt ----------------------------------------------",
     212992000);

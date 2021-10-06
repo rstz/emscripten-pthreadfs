@@ -63,13 +63,19 @@ mergeInto(LibraryManager.library, {
         if (PThreadFS.isDir(node.mode)) {
           attr.size = 4096;
         } else if (PThreadFS.isFile(node.mode)) {
-          if (node.handle) {
-            attr.size = await node.handle.getSize();
-          } 
+          if (ENVIRONMENT_IS_WEB){
+            let file_blob = await node.localReference.getFile();
+            attr.size = file_blob.size;
+          }
           else {
-            let fileHandle = await node.localReference.createSyncAccessHandle();
-            attr.size = await fileHandle.getSize();
-            await fileHandle.close();
+            if (node.handle) {
+              attr.size = await node.handle.getSize();
+            } 
+            else {
+              let fileHandle = await node.localReference.createSyncAccessHandle();
+              attr.size = await fileHandle.getSize();
+              await fileHandle.close();
+            }
           }
         } else if (PThreadFS.isLink(node.mode)) {
           attr.size = node.link.length;
@@ -95,22 +101,30 @@ mergeInto(LibraryManager.library, {
           node.timestamp = attr.timestamp;
         }
         if (attr.size !== undefined) {
-          let useOpen = false;
-          let fileHandle = node.handle;
-          try {
-            if (!fileHandle) {
-              // Open a handle that is closed later.
-              useOpen = true;
-              fileHandle = await node.localReference.createSyncAccessHandle();
-            }
-            await fileHandle.truncate(attr.size);
-            
-          } catch (e) {
-            if (!('code' in e)) throw e;
-            throw new PThreadFS.ErrnoError(-e.errno);
-          } finally {
-            if (useOpen) {
-              await fileHandle.close();
+          if (ENVIRONMENT_IS_WEB) {
+            // Since Access Handles are unavailable in workers, we must use writables instead.
+            let wt = await node.localReference.createWritable({ keepExistingData: true});
+            await wt.truncate(attr.size);
+            await wt.close();
+          }
+          else {  // !ENVIRONMENT_IS_WEB
+            let useOpen = false;
+            let fileHandle = node.handle;
+            try {
+              if (!fileHandle) {
+                // Open a handle that is closed later.
+                useOpen = true;
+                fileHandle = await node.localReference.createSyncAccessHandle();
+              }
+              await fileHandle.truncate(attr.size);
+              
+            } catch (e) {
+              if (!('code' in e)) throw e;
+              throw new PThreadFS.ErrnoError(-e.errno);
+            } finally {
+              if (useOpen) {
+                await fileHandle.close();
+              }
             }
           }
         }
@@ -260,7 +274,12 @@ mergeInto(LibraryManager.library, {
           stream.handle = stream.node.handle;
           ++stream.node.refcount;
         } else {
-          stream.handle = await stream.node.localReference.createSyncAccessHandle();
+          if (ENVIRONMENT_IS_WEB) {
+            stream.handle = stream.node.localReference;
+          }
+          else {
+            stream.handle = await stream.node.localReference.createSyncAccessHandle();
+          }
           stream.node.handle = stream.handle;
           stream.node.refcount = 1;
         }
@@ -280,7 +299,9 @@ mergeInto(LibraryManager.library, {
         stream.handle = null;
         --stream.node.refcount;
         if (stream.node.refcount <= 0) {
-          await stream.node.handle.close();
+          if (!ENVIRONMENT_IS_WEB) {
+            await stream.node.handle.close();
+          }
           stream.node.handle = null;
         }
       },
@@ -290,14 +311,26 @@ mergeInto(LibraryManager.library, {
         if (stream.handle == null) {
           throw new PThreadFS.ErrnoError({{{ cDefine('EBADF') }}});
         }
-        await stream.handle.flush();
+        if (!ENVIRONMENT_IS_WEB) {
+          await stream.handle.flush();
+        }
         return 0;
       },
 
       read: async function (stream, buffer, offset, length, position) {
         FSAFS.debug('read', arguments);
         let data = buffer.subarray(offset, offset+length);
-        let readBytes = await stream.handle.read(data, {at: position});
+        let readBytes;
+        if (ENVIRONMENT_IS_WEB) {
+          let file_blob = await stream.handle.getFile();
+          let file_arraybuffer = await file_blob.arrayBuffer();
+          let read_maximum = Math.min(position + data.length, file_blob.size);
+          data.set(file_arraybuffer.slice(position, read_maximum));
+          readBytes = read_maximum - position;
+        }
+        else {
+          readBytes = await stream.handle.read(data, {at: position});
+        }
         return readBytes;
       },
 
@@ -305,7 +338,16 @@ mergeInto(LibraryManager.library, {
         FSAFS.debug('write', arguments);
         stream.node.timestamp = Date.now();
         let data = buffer.subarray(offset, offset+length);
-        let writtenBytes = await stream.handle.write(data, {at: position});
+        let writtenBytes;
+        if (ENVIRONMENT_IS_WEB) {
+          let writable = await stream.handle.createWritable({ keepExistingData: true});
+          await writable.write({type: "write", position: position, data: data});
+          await writable.close();
+          writtenBytes = data.length;
+        }
+        else {
+          writtenBytes = await stream.handle.write(data, {at: position});
+        }
         return writtenBytes;
       },
 
@@ -316,7 +358,13 @@ mergeInto(LibraryManager.library, {
           position += stream.position;
         } else if (whence === {{{ cDefine('SEEK_END') }}}) {
           if (PThreadFS.isFile(stream.node.mode)) {
-            position += await stream.handle.getSize();
+            if (ENVIRONMENT_IS_WEB) {
+              let file_blob = await stream.handle.getFile();
+              position += file_blob.size;
+            }
+            else {
+              position += await stream.handle.getSize();
+            }
           }
         } 
 
