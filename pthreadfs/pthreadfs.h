@@ -233,12 +233,6 @@ SYS_CAPI_DEF(
 SYS_JSAPI_DEF(
   fallocate, long fd, long mode, long off_low, long off_high, long len_low, long len_high)
 
-// Emscripten implements utime directly through library.js. We copy that code 
-// to utime_sync in order to avoid name confusion. utime_async proxies the
-// calls to the IO thread.
-extern long utime_sync(long path_ref, long times);
-extern void utime_async(long path_ref, long times, void (*fun)(long));
-long utime(long path_ref, long times);
 } // extern "C"
 
 namespace emscripten {

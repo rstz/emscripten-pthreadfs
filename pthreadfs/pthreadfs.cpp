@@ -387,19 +387,6 @@ SYS_CAPI_DEF(
   SYS_SYNC_TO_ASYNC_FD(fallocate, fd, mode, off_low, off_high, len_low, len_high);
 }
 
-long utime(long path_ref, long times) {
-  std::string path((char*)path_ref);
-  if (emscripten::is_pthreadfs_file(path)) {
-    g_sync_to_async_helper.invoke(
-      [path_ref, times](emscripten::sync_to_async::Callback resume) {
-        g_resumeFct = [resume]() { (*resume)(); };
-        utime_async(path_ref, times, &resumeWrapper_l);
-      });
-    return resume_result_long;
-  }
-  return utime_sync(path_ref, times);
-}
-
 // Define global variables to be populated by resume;
 std::function<void()> g_resumeFct;
 emscripten::sync_to_async g_sync_to_async_helper __attribute__((init_priority(102)));

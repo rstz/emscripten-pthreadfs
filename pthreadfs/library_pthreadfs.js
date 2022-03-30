@@ -83,54 +83,6 @@ for (x of SyscallsFunctions) {
   createSyscallWrapper(x.name, x.args, SyscallWrappers);
 }
 
-SyscallWrappers['utime_sync'] =
-  function(folder_ref, resume) {
-  let folder = UTF8ToString(folder_ref);
-
-  PThreadFS.init(folder).then(async () => {
-    // Load packaged data added during --pre-js.
-    await PThreadFS.loadAvailablePackages();
-    wasmTable.get(resume)();
-  });
-}
-
-// This is copied from utime() as defined in library.js.
-SyscallWrappers['utime_sync__deps'] = ['$FS', '$setFileTime'];
-SyscallWrappers['utime_sync__proxy'] = 'sync';
-SyscallWrappers['utime_sync__sig'] = 'iii';
-SyscallWrappers['utime_sync'] = function(path, times) {
-  // int utime(const char *path, const struct utimbuf *times);
-  // http://pubs.opengroup.org/onlinepubs/009695399/basedefs/utime.h.html
-  var time;
-  if (times) {
-    // NOTE: We don't keep track of access timestamps.
-    time = {{{ makeGetValue('times', C_STRUCTS.utimbuf.modtime, 'i32') }}} * 1000;
-  } else {
-    time = Date.now();
-  }
-  return setFileTime(path, time);
-};
-
-SyscallWrappers['utime_async'] = function(path, times, resume) {
-  var time;
-  if (times) {
-    // NOTE: We don't keep track of access timestamps.
-    time = {{{ makeGetValue('times', C_STRUCTS.utimbuf.modtime, 'i32') }}} * 1000;
-  } else {
-    time = Date.now();
-  }
-  path = UTF8ToString(path);
-  try {
-    PThreadFS.utime(path, time, time).then(() => {
-      wasmTable.get(resume)(0);
-    });
-  } catch (e) {
-    if (!(e instanceof PThreadFS.ErrnoError)) throw e + ' : ' + stackTrace();
-    setErrNo(e.errno);
-    wasmTable.get(resume)(-1);
-  }
-};
-
 SyscallWrappers['pthreadfs_init'] =
   function(folder_ref, resume) {
   let folder = UTF8ToString(folder_ref);
