@@ -21,8 +21,8 @@ let SyscallsFunctions = [
   {'name': 'fchmod', 'args': ['fd', 'mode']},
   {'name': 'fchdir', 'args': ['fd']},
   {'name': 'fdatasync', 'args': ['fd']},
-  {'name': 'truncate64', 'args': ['path', 'low', 'high']},
-  {'name': 'ftruncate64', 'args': ['fd', 'low', 'high']},
+  {'name': 'truncate64', 'args': ['path', 'length']},
+  {'name': 'ftruncate64', 'args': ['fd', 'length']},
   {'name': 'stat64', 'args': ['path', 'buf']},
   {'name': 'lstat64', 'args': ['path', 'buf']},
   {'name': 'fstat64', 'args': ['fd', 'buf']},
@@ -169,8 +169,8 @@ List of implemented syscalls:
   {'name': 'fdatasync', 'args': ['fd']},
   {'name': 'poll', 'args': ['fds', 'nfds', 'timeout']},
   {'name': 'getcwd', 'args': ['buf', 'size']},
-  {'name': 'truncate64', 'args': ['path', 'zero', 'low', 'high']},
-  {'name': 'ftruncate64', 'args': ['fd', 'zero', 'low', 'high']},
+  {'name': 'truncate64', 'args': ['path', 'zero', 'length']},
+  {'name': 'ftruncate64', 'args': ['fd', 'zero', 'length']},
   {'name': 'stat64', 'args': ['path', 'buf']},
   {'name': 'lstat64', 'args': ['path', 'buf']},
   {'name': 'fstat64', 'args': ['fd', 'buf']},
@@ -673,14 +673,12 @@ var SyscallsLibrary = {
       stringToUTF8(cwd, buf, size);
       return buf;
     },
-    truncate64_async: async function(path, low, high) {
+    truncate64_async: async function(path, length) {
       path = ASYNCSYSCALLS.getStr(path);
-      var length = ASYNCSYSCALLS.get64(low, high);
       await PThreadFS.truncate(path, length);
       return 0;
     },
-    ftruncate64_async : async function(fd, low, high) {
-      var length = ASYNCSYSCALLS.get64(low, high);
+    ftruncate64_async : async function(fd, length) {
       await PThreadFS.ftruncate(fd, length);
       return 0;
     },

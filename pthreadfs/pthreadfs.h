@@ -179,24 +179,11 @@ SYS_JSAPI_DEF(fchdir, long fd)
 SYS_CAPI_DEF(fdatasync, 148, long fd);
 SYS_JSAPI_DEF(fdatasync, long fd)
 
-// Special handling for truncate64 and ftruncate64, since the `zero` parameter
-// was removed.
-#if __EMSCRIPTEN_major__ > 2 || (__EMSCRIPTEN_major__==2 && __EMSCRIPTEN_tiny__ > 31)
-SYS_CAPI_DEF(truncate64, 193, long path, long low, long high);
-SYS_JSAPI_DEF(truncate64, long path, long low, long high)
+SYS_CAPI_DEF(truncate64, 193, long path, uint64_t length);
+SYS_JSAPI_DEF(truncate64, long path, uint64_t length)
 
-SYS_CAPI_DEF(ftruncate64, 194, long fd, long low, long high);
-SYS_JSAPI_DEF(ftruncate64, long fd, long low, long high)
-#else  // __EMSCRIPTEN_major__ > 2 || (__EMSCRIPTEN_major__==2 && __EMSCRIPTEN_tiny__ > 31)
-SYS_CAPI_DEF(truncate64, 193, long path, long zero, long low, long high);
-extern void __sys_truncate64_async(long path, long low, long high, void (*fun)(long)); 
-SYS_JS_DEF(truncate64, long path, long zero, long low, long high);
-
-SYS_CAPI_DEF(ftruncate64, 194, long fd, long zero, long low, long high);
-extern void __sys_ftruncate64_async(long fd, long low, long high, void (*fun)(long));
- SYS_JS_DEF(ftruncate64, long fd, long zero, long low, long high);
-
-#endif  // __EMSCRIPTEN_major__ > 2 || (__EMSCRIPTEN_major__==2 && __EMSCRIPTEN_tiny__ > 31)
+SYS_CAPI_DEF(ftruncate64, 194, long fd, uint64_t length);
+SYS_JSAPI_DEF(ftruncate64, long fd, uint64_t length)
 
 SYS_CAPI_DEF(stat64, 195, long path, long buf);
 SYS_JSAPI_DEF(stat64, long path, long buf)

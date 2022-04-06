@@ -268,39 +268,13 @@ SYS_CAPI_DEF(fchdir, 133, long fd) { SYS_SYNC_TO_ASYNC_FD(fchdir, fd); }
 
 SYS_CAPI_DEF(fdatasync, 148, long fd) { SYS_SYNC_TO_ASYNC_FD(fdatasync, fd); }
 
-#if __EMSCRIPTEN_major__ > 2 || (__EMSCRIPTEN_major__==2 && __EMSCRIPTEN_tiny__ > 31)
-SYS_CAPI_DEF(truncate64, 193, long path, long low, long high) {
-  SYS_SYNC_TO_ASYNC_PATH(truncate64, path, low, high);
+SYS_CAPI_DEF(truncate64, 193, long path, uint64_t length) {
+  SYS_SYNC_TO_ASYNC_PATH(truncate64, path, length);
 }
 
-SYS_CAPI_DEF(ftruncate64, 194, long fd, long low, long high) {
-  SYS_SYNC_TO_ASYNC_FD(ftruncate64, fd, low, high);
+SYS_CAPI_DEF(ftruncate64, 194, long fd, uint64_t length) {
+  SYS_SYNC_TO_ASYNC_FD(ftruncate64, fd, length);
 }
-#else  // __EMSCRIPTEN_major__ > 2 || (__EMSCRIPTEN_major__==2 && __EMSCRIPTEN_tiny__ > 31)
-SYS_CAPI_DEF(truncate64, 193, long path, long zero, long low, long high) {
-  std::string pathname((char*)path);
-  if (emscripten::is_pthreadfs_file(pathname)) {
-    g_sync_to_async_helper.invoke([path, low, high](emscripten::sync_to_async::Callback resume) {
-      g_resumeFct = [resume]() { (*resume)(); };
-      __sys_truncate64_async(path, low, high, &resumeWrapper_l);
-    });
-    return resume_result_long;
-  }
-  return SYNC_JS_SYSCALL(truncate64)(path, zero, low, high);
-}
-
-SYS_CAPI_DEF(ftruncate64, 194, long fd, long zero, long low, long high) {
-  if (fsa_file_descriptors.count(fd) > 0) {
-    g_sync_to_async_helper.invoke(
-      [fd, low, high](emscripten::sync_to_async::Callback resume) {
-        g_resumeFct = [resume]() { (*resume)(); };
-        __sys_ftruncate64_async(fd, low, high, &resumeWrapper_l);
-      });
-    return resume_result_long;
-  }
-  return SYNC_JS_SYSCALL(ftruncate64)(fd, zero, low, high);
-}
-#endif  // __EMSCRIPTEN_major__ > 2 || (__EMSCRIPTEN_major__==2 && __EMSCRIPTEN_tiny__ > 31)
 
 SYS_CAPI_DEF(stat64, 195, long path, long buf) {
   std::string pathname((char*)path);
