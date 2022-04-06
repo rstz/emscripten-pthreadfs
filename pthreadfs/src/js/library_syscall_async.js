@@ -521,12 +521,14 @@ var SyscallsLibrary = {
       stringToUTF8(cwd, buf, size);
       return buf;
     },
-    truncate64_async: async function(path, length) {
+    truncate64_async: async function(path, {{{ defineI64Param('length') }}}) {
       path = ASYNCSYSCALLS.getStr(path);
+      {{{ receiveI64ParamAsDouble('length') }}}
       await PThreadFS.truncate(path, length);
       return 0;
     },
-    ftruncate64_async : async function(fd, length) {
+    ftruncate64_async : async function(fd, {{{ defineI64Param('length') }}}) {
+      {{{ receiveI64ParamAsDouble('length') }}}
       await PThreadFS.ftruncate(fd, length);
       return 0;
     },
@@ -751,7 +753,9 @@ var SyscallsLibrary = {
       await PThreadFS.utime(path, atime, mtime);
       return 0;
     },
-    fallocate_async: async function(fd, mode, offset, length) {
+    fallocate_async: async function(fd, mode, {{{ defineI64Param('offset') }}}, {{{ defineI64Param('length') }}}) {
+      {{{ receiveI64ParamAsDouble('offset') }}}
+      {{{ receiveI64ParamAsDouble('length') }}}
       var stream = await ASYNCSYSCALLS.getStreamFromFD(fd)
       await PThreadFS.allocate(stream, offset, length);
       return 0;
