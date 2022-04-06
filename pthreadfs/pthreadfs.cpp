@@ -357,8 +357,8 @@ SYS_CAPI_DEF(fstatfs64, 269, long fd, long size, long buf) {
 }
 
 SYS_CAPI_DEF(
-  fallocate, 324, long fd, long mode, long off_low, long off_high, long len_low, long len_high) {
-  SYS_SYNC_TO_ASYNC_FD(fallocate, fd, mode, off_low, off_high, len_low, len_high);
+  fallocate, 324, long fd, long mode, long offset, long length) {
+  SYS_SYNC_TO_ASYNC_FD(fallocate, fd, mode, offset, length);
 }
 
 long utime(long path_ref, long times) {

@@ -33,7 +33,7 @@ let SyscallsFunctions = [
   {'name': 'fcntl64', 'args': ['fd', 'cmd', 'varargs']},
   {'name': 'statfs64', 'args': ['path', 'size', 'buf']},
   {'name': 'fstatfs64', 'args': ['fd', 'size', 'buf']},
-  {'name': 'fallocate', 'args': ['fd', 'mode', 'off_low', 'off_high', 'len_low', 'len_high']},
+  {'name': 'fallocate', 'args': ['fd', 'mode', 'offset', 'length']},
 ]
 
 let WasiFunctions = [
@@ -192,7 +192,7 @@ List of implemented syscalls:
   {'name': 'fchmodat', 'args': ['dirfd', 'path', 'mode', 'varargs']},
   {'name': 'faccessat', 'args': ['dirfd', 'path', 'amode', 'flags']},
   {'name': 'utimensat', 'args': ['dirfd', 'path', 'times', 'flags']},
-  {'name': 'fallocate', 'args': ['fd', 'mode', 'off_low', 'off_high', 'len_low', 'len_high']},
+  {'name': 'fallocate', 'args': ['fd', 'mode', 'offset', 'length']},
   
 */
 
@@ -903,11 +903,9 @@ var SyscallsLibrary = {
       await PThreadFS.utime(path, atime, mtime);
       return 0;
     },
-    fallocate_async: async function(fd, mode, off_low, off_high, len_low, len_high) {
+    fallocate_async: async function(fd, mode, offset, length) {
       var stream = await ASYNCSYSCALLS.getStreamFromFD(fd)
-      var offset = ASYNCSYSCALLS.get64(off_low, off_high);
-      var len = ASYNCSYSCALLS.get64(len_low, len_high);
-      await PThreadFS.allocate(stream, offset, len);
+      await PThreadFS.allocate(stream, offset, length);
       return 0;
     },
 };

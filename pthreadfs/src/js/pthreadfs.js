@@ -33,7 +33,7 @@ let SyscallsFunctions = [
   {'name': 'fcntl64', 'args': ['fd', 'cmd', 'varargs']},
   {'name': 'statfs64', 'args': ['path', 'size', 'buf']},
   {'name': 'fstatfs64', 'args': ['fd', 'size', 'buf']},
-  {'name': 'fallocate', 'args': ['fd', 'mode', 'off_low', 'off_high', 'len_low', 'len_high']},
+  {'name': 'fallocate', 'args': ['fd', 'mode', 'offset', 'length']},
 ]
 
 let WasiFunctions = [

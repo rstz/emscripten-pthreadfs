@@ -216,9 +216,9 @@ SYS_CAPI_DEF(fstatfs64, 269, long fd, long size, long buf);
 SYS_JSAPI_DEF(fstatfs64, long fd, long size, long buf)
 
 SYS_CAPI_DEF(
-  fallocate, 324, long fd, long mode, long off_low, long off_high, long len_low, long len_high);
+  fallocate, 324, long fd, long mode, long offset, long length);
 SYS_JSAPI_DEF(
-  fallocate, long fd, long mode, long off_low, long off_high, long len_low, long len_high)
+  fallocate, long fd, long mode, long offset, long length)
 
 // Emscripten implements utime directly through library.js. We copy that code 
 // to utime_sync in order to avoid name confusion. utime_async proxies the
