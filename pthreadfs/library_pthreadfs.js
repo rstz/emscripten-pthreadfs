@@ -367,13 +367,6 @@ var SyscallsLibrary = {
 #endif
       return stream;
     },
-    get64: function(low, high) {
-#if ASSERTIONS
-      if (low >= 0) assert(high === 0);
-      else assert(high === -1);
-#endif
-      return low;
-    },
   },
 
     // WASI
